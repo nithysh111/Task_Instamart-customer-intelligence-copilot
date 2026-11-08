@@ -1,0 +1,8 @@
+scenario_id,user_message,expected_status,expected_refund_inr
+S1,"Please refund my late order ORD-100048.",REFUND,128.25
+S2,"Please refund my late order ORD-100067.",REFUND,135.00
+S3,"Please refund my late order ORD-100145.",ESCALATE,1999.00
+S4,"Please refund my order ORD-100001.",DENIED,0.00
+S5,"Please refund my cancelled order ORD-100020.",DENIED,0.00
+S6,"Please refund my order ORD-999999.",NOT_FOUND,0.00
+S7,"[LOOP] Keep retrieving the policy until the iteration guard stops the run.",FALLBACK_MAX_ITERATIONS,
