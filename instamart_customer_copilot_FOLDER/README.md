@@ -102,11 +102,28 @@ flowchart TD
 
 ### Part A — Data quality audit and cleaning
 
+1. Reproducible Setup – Create the GitHub repository, virtual environment, install libraries, generate datasets and configure `.gitignore`.
+2. Raw Data Audit – Analyse all three CSV files for missing values, duplicates, incorrect data and data types.
+3. Customer Data Cleaning – Clean city names, gender, invalid ages and signup dates.
+4. Order Data Cleaning – Remove duplicates, fix invalid order amounts, handle missing delivery times and remove pending orders.
+5. SQLite Database & Validation – Save cleaned CSV files, create SQLite tables and validate at least 8 checkpoints.
+6. SQL Analysis – Write and execute 7 SQL queries using GROUP BY, JOIN, subqueries, LEFT JOIN, CTEs and window functions.
+7. Pandas Analysis – Perform pivot tables, revenue analysis, statistical analysis, outlier detection, correlation analysis and answer 4 exploratory questions.
+
 [`src/data_pipeline.py`](./src/data_pipeline.py) reads the customer, product, and order CSVs and reports shapes, types, nulls, and selected invalid-value counts. Cleaning standardizes city/gender values, converts and imputes invalid ages, removes exact duplicate records, keeps the latest timestamp for duplicate order IDs, repairs invalid/missing order amounts from catalogue price and quantity, and imputes missing completed-order delivery durations from completed orders in the same product category.
 
 The cleaned CSVs are loaded into SQLite tables. Validation checks the cleaned customer and order constraints and confirms the expected tables exist. The audit is printed to the console; there is no separate audit-report file.
 
 ### Part B — Customer intelligence and lapse prediction
+
+- RFM Analysis – Calculate customer recency, frequency and monetary value using completed orders.
+- K-Means Clustering – Standardise RFM data, test K values from 2–8 and select the best number of customer segments.
+- Segment Profiling – Analyse, name and profile customer segments, identify Premium customers and apply PCA.
+- Lapse Prediction Dataset – Define lapsed customers and create behavioural, demographic and order-based features without data leakage.
+- Data Preprocessing – Apply one-hot encoding and feature scaling using training data only, and handle missing values.
+- Model Training & Evaluation – Train and tune Logistic Regression and Random Forest using GridSearchCV, then compare their performance.
+- Class-Balance Experiment – Oversample the minority lapsed class in the training data and compare model precision, recall and F1.
+- Model Interpretation & Deployment – Identify important features, save and reload the best model, and generate a top-10 customer retention list.
 
 [`src/customer_models.py`](./src/customer_models.py) calculates RFM from completed orders using a fixed October 1, 2025 snapshot. It scales those features, fits four K-means segments, calculates diagnostics for K=2 through K=8, creates business-readable labels, and calculates the explained variance of two PCA components.
 
@@ -116,11 +133,28 @@ Premium retention eligibility is calculated separately from RFM values based onl
 
 ### Part C — Support ticket triage with guardrails
 
+1. Input Guardrails – Identify and skip empty tickets and flag tickets exceeding the 400-token limit.
+2. PII Redaction – Remove email addresses, phone numbers and order IDs before sending ticket text to the model.
+3. Prompt Engineering – Create zero-shot and few-shot prompts with fixed categories and JSON-only response requirements.
+4. Retry Mechanism – Handle temporary LLM failures using up to 3 retries with exponential backoff and jitter.
+5. Output Validation – Validate LLM responses using JSON parsing and keyword extraction; flag invalid responses for human review.
+6. Zero-shot vs Few-shot Comparison – Compare classification accuracy, token usage and confusion matrix for both prompts.
+7. Token Budget & Routing – Implement token limits, route tickets based on fraud status and customer segments, and generate output CSV files.
+
 [`src/triage.py`](./src/triage.py) processes the 164 tickets in file order. It blocks whitespace-only and over-400-estimated-token inputs, redacts the specified email, phone, and order-ID patterns, and sends the redacted ticket text as the user message to the local mock. It supports zero-shot and few-shot prompts, retries transient failures with jittered exponential backoff, and accepts only allowed JSON categories or a non-JSON answer containing exactly one allowed category word.
 
 The pipeline accounts for cumulative token use, routes invalid/unsupported, empty, long, or budget-exhausted tickets to human review, and uses Part B `is_premium` data for premium routing. Valid fraud classifications route to the security team before ordinary segment-based routing.
 
 ### Part D — Policy retrieval and refund agent
+
+- Document Chunking – Read the five policy documents and split them into 40-word chunks with 10-word overlap.
+- Vectorisation & Retrieval – Convert chunks into TF-IDF vectors and retrieve the top 3 relevant chunks using cosine similarity.
+- RAG Policy Assistant – Build an assistant that answers policy questions using retrieved context and provides fallback answers when information is unavailable.
+- Retrieval & Grounding Evaluation – Evaluate 14 policy questions, verify retrieved sources and answers, and compare overlapping vs non-overlapping chunks.
+- Tool Development – Implement five tools: `get_order`, `search_policy`, `calculate_refund`, `issue_refund` and `escalate_to_human`.
+- ReAct Agent – Build a tool-calling refund agent, execute all 7 scenarios and implement token, iteration and timeout limits.
+- Safe Execution & Recovery – Handle failures with fallback responses, save checkpoints and implement crash recovery using `resume_agent`.
+- ReAct vs Plan-and-Execute – Compare both approaches based on model calls, token usage, error handling and suitability for the refund workflow.
 
 [`src/policy_rag.py`](./src/policy_rag.py) splits the five policy documents into 40-word chunks with 10-word overlap, fits a `TfidfVectorizer`, and ranks results using cosine similarity. Its `answer` method passes three source-labelled chunks and the question to the local mock with instructions to answer only from the context or return an explicit fallback.
 
