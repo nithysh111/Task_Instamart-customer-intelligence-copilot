@@ -32,31 +32,29 @@ An end-to-end, offline teaching project that turns synthetic quick-commerce data
 
 ## Project overview
 
-Quick-commerce platforms generate customer, product, order, and support data across multiple operational workflows. This project demonstrates a local workflow for validating those exports, understanding purchasing patterns, estimating which customers may lapse, and processing support requests with explicit privacy and human-review controls.
+This project builds a fully local, end-to-end quick-commerce intelligence workflow using synthetic data. It covers data validation, customer segmentation, lapse-risk modeling, privacy-aware support ticket triage, grounded policy retrieval, and a simulated refund agent.
 
-It combines conventional data processing and machine learning with retrieval-augmented policy answers and a simulated tool-using refund agent. The emphasis is on an end-to-end engineering workflow: raw data validation, cleaned tables, reproducible model preparation, measured outputs, safe text handling, and auditable simulated actions.
-
-The project is instructional rather than a production service. Its datasets are deterministic synthetic fixtures, its LLM is a rule-based local mock, and refund actions write to a local ledger rather than moving money.
+The system is designed for learning and portfolio demonstration rather than production deployment. It uses deterministic synthetic datasets, a local mock LLM, and SQLite-backed state tracking, with no external API calls or real payment execution.
 
 ## Business problem statement
 
-The project illustrates common quick-commerce challenges:
+The project addresses common operational issues in customer-facing commerce systems:
 
-- **Poor data quality:** exports can contain inconsistent categories, blank values, malformed amounts, duplicate orders, pending/final order records, and invalid delivery durations.
-- **Customer churn risk:** customers who stop ordering need to be identified using information available before the prediction window.
-- **Purchasing behavior:** customer-level recency, frequency, and monetary value can help summarize differences in ordering behavior.
-- **Support workload:** high ticket volumes can delay simple classification and policy lookups.
-- **Automation safety:** support automation must avoid sending recognized personal identifiers to a model, validate outputs, enforce operational limits, and route uncertain cases to people.
+- **Data quality:** inconsistent categories, duplicate orders, malformed amounts, missing delivery times, and invalid customer values.
+- **Retention risk:** identifying customers likely to lapse using only historical behavior available before the outcome window.
+- **Customer segmentation:** grouping customers by behavior to support service prioritization and retention strategy.
+- **Support workload:** routing and classifying large ticket volumes while protecting customer data and preserving review controls.
+- **Policy accuracy and safety:** answering support questions using retrieved policy context and refusing unsupported or unsafe actions.
+- **Auditability:** every refund decision, escalation, and checkpoint is traceable in local logs and state files.
 
 ## Project objectives
 
-- Audit and clean synthetic customer, product, and order exports; persist trusted tables as CSV and SQLite.
-- Create RFM features, customer segments, and PCA-based dimensionality reduction diagnostics.
-- Train and evaluate lapse models using a pre-prediction feature window and a later outcome window.
-- Demonstrate PII redaction, input limits, retry handling, output validation, and customer-aware ticket routing.
-- Retrieve policy passages and use them as context for grounded responses.
-- Simulate refund decisions with SQLite lookups, deterministic refund rules, human escalation, JSONL logging, and resumable agent state.
-- Keep the workflow inspectable in Python modules and a Jupyter notebook.
+- Clean and validate synthetic customer, product, and order exports and save trusted tables to CSV and SQLite.
+- Build RFM features, customer clusters, and dimensionality-reduction diagnostics to profile behavior.
+- Train and evaluate churn/lapse models with time-aware feature and outcome windows.
+- Apply PII redaction, prompt validation, token limits, retry logic, and human review rules for support automation.
+- Ground policy answers in retrieved document chunks and simulate refund actions with tool checks and audit logs.
+- Keep the workflow inspectable across Python modules, SQL, and a Jupyter notebook.
 
 ## System architecture
 
@@ -102,63 +100,53 @@ flowchart TD
 
 ### Part A — Data quality audit and cleaning
 
-1. Reproducible Setup – Create the GitHub repository, virtual environment, install libraries, generate datasets and configure `.gitignore`.
-2. Raw Data Audit – Analyse all three CSV files for missing values, duplicates, incorrect data and data types.
-3. Customer Data Cleaning – Clean city names, gender, invalid ages and signup dates.
-4. Order Data Cleaning – Remove duplicates, fix invalid order amounts, handle missing delivery times and remove pending orders.
-5. SQLite Database & Validation – Save cleaned CSV files, create SQLite tables and validate at least 8 checkpoints.
-6. SQL Analysis – Write and execute 7 SQL queries using GROUP BY, JOIN, subqueries, LEFT JOIN, CTEs and window functions.
-7. Pandas Analysis – Perform pivot tables, revenue analysis, statistical analysis, outlier detection, correlation analysis and answer 4 exploratory questions.
+1. **Reproducible setup:** create the repository, set up a virtual environment, install dependencies, generate synthetic data, and configure `.gitignore`.
+2. **Raw data audit:** inspect customers, products, and orders for missing values, duplicates, malformed data, and type issues.
+3. **Customer cleaning:** normalize city names, gender values, invalid ages, and signup dates.
+4. **Order cleaning:** remove duplicate orders, repair invalid order amounts, fill missing delivery durations, and discard pending orders.
+5. **SQLite loading and validation:** save cleaned CSVs, build SQLite tables, and verify at least 8 validation checkpoints.
+6. **SQL analysis:** write and execute queries using `GROUP BY`, `JOIN`, subqueries, `LEFT JOIN`, CTEs, and window functions.
+7. **Pandas analysis:** conduct pivot tables, revenue analysis, descriptive statistics, outlier detection, correlation review, and exploratory questions.
 
-[`src/data_pipeline.py`](./src/data_pipeline.py) reads the customer, product, and order CSVs and reports shapes, types, nulls, and selected invalid-value counts. Cleaning standardizes city/gender values, converts and imputes invalid ages, removes exact duplicate records, keeps the latest timestamp for duplicate order IDs, repairs invalid/missing order amounts from catalogue price and quantity, and imputes missing completed-order delivery durations from completed orders in the same product category.
-
-The cleaned CSVs are loaded into SQLite tables. Validation checks the cleaned customer and order constraints and confirms the expected tables exist. The audit is printed to the console; there is no separate audit-report file.
+[`src/data_pipeline.py`](./src/data_pipeline.py) validates raw exports, repairs common data issues, and writes trusted output tables to CSV and SQLite. Cleaning covers duplicate order IDs, malformed amounts, invalid delivery durations, inconsistent case values, and missing customer metadata.
 
 ### Part B — Customer intelligence and lapse prediction
 
-- RFM Analysis – Calculate customer recency, frequency and monetary value using completed orders.
-- K-Means Clustering – Standardise RFM data, test K values from 2–8 and select the best number of customer segments.
-- Segment Profiling – Analyse, name and profile customer segments, identify Premium customers and apply PCA.
-- Lapse Prediction Dataset – Define lapsed customers and create behavioural, demographic and order-based features without data leakage.
-- Data Preprocessing – Apply one-hot encoding and feature scaling using training data only, and handle missing values.
-- Model Training & Evaluation – Train and tune Logistic Regression and Random Forest using GridSearchCV, then compare their performance.
-- Class-Balance Experiment – Oversample the minority lapsed class in the training data and compare model precision, recall and F1.
-- Model Interpretation & Deployment – Identify important features, save and reload the best model, and generate a top-10 customer retention list.
+- **RFM analysis:** calculate recency, frequency, and monetary value from completed orders.
+- **K-means clustering:** standardize RFM features, evaluate `K=2..8`, and select the best customer segmentation.
+- **Segment profiling:** profile behavioral clusters, label premium segments, and apply PCA for dimensionality diagnostics.
+- **Lapse dataset construction:** define the lapse label and engineer behavioral, demographic, and order-based features without leakage.
+- **Preprocessing:** apply one-hot encoding, scaling, and missing-value handling using training-data statistics only.
+- **Model training and evaluation:** tune Logistic Regression and Random Forest using `GridSearchCV` and compare performance.
+- **Class-balance experiment:** oversample the lapsed class in training folds and compare precision, recall, and F1.
+- **Model interpretation and deployment:** inspect key features, reload the saved model, and generate the top-10 retention list.
 
-[`src/customer_models.py`](./src/customer_models.py) calculates RFM from completed orders using a fixed October 1, 2025 snapshot. It scales those features, fits four K-means segments, calculates diagnostics for K=2 through K=8, creates business-readable labels, and calculates the explained variance of two PCA components.
-
-The lapse model builds customer features from orders before September 1, 2025; completed orders during September define the lapse label. Numeric and categorical imputers, scaling, and one-hot encoding are kept inside the estimator pipeline. Logistic regression and random-forest candidates are tuned with five-fold `GridSearchCV`; a second forest pipeline places `RandomOverSampler` inside an `imblearn` pipeline so resampling occurs only within training folds. The selected model is saved and reloaded to check prediction consistency.
-
-Premium retention eligibility is calculated separately from RFM values based only on orders before September 1. The retention file contains the highest-risk eligible customers from the held-out test predictions. The customer split is stratified and random (80/20, random state 42); it is **not** a chronological train/test split. Temporal separation is applied to features versus the September outcome window.
+[`src/customer_models.py`](./src/customer_models.py) builds the RFM data and the leakage-aware lapse model. It keeps feature engineering, preprocessing, and resampling inside the training pipeline to avoid test-set leakage and uses saved model artifacts to verify reproducible predictions.
 
 ### Part C — Support ticket triage with guardrails
 
-1. Input Guardrails – Identify and skip empty tickets and flag tickets exceeding the 400-token limit.
-2. PII Redaction – Remove email addresses, phone numbers and order IDs before sending ticket text to the model.
-3. Prompt Engineering – Create zero-shot and few-shot prompts with fixed categories and JSON-only response requirements.
-4. Retry Mechanism – Handle temporary LLM failures using up to 3 retries with exponential backoff and jitter.
-5. Output Validation – Validate LLM responses using JSON parsing and keyword extraction; flag invalid responses for human review.
-6. Zero-shot vs Few-shot Comparison – Compare classification accuracy, token usage and confusion matrix for both prompts.
-7. Token Budget & Routing – Implement token limits, route tickets based on fraud status and customer segments, and generate output CSV files.
+1. **Input guardrails:** skip empty tickets and flag tickets above the 400-token limit.
+2. **PII redaction:** remove email addresses, phone numbers, and order IDs before sending ticket text to the model.
+3. **Prompt engineering:** use zero-shot and few-shot prompts with fixed categories and JSON-only response requirements.
+4. **Retry handling:** recover from temporary model failures with up to three retries and exponential backoff with jitter.
+5. **Output validation:** parse JSON responses, extract keywords, and route invalid outputs to human review.
+6. **Prompt comparison:** compare accuracy, token usage, and confusion matrices for zero-shot and few-shot classification.
+7. **Token budget and routing:** enforce budgets, route tickets by fraud and segment, and write final CSV outputs.
 
-[`src/triage.py`](./src/triage.py) processes the 164 tickets in file order. It blocks whitespace-only and over-400-estimated-token inputs, redacts the specified email, phone, and order-ID patterns, and sends the redacted ticket text as the user message to the local mock. It supports zero-shot and few-shot prompts, retries transient failures with jittered exponential backoff, and accepts only allowed JSON categories or a non-JSON answer containing exactly one allowed category word.
-
-The pipeline accounts for cumulative token use, routes invalid/unsupported, empty, long, or budget-exhausted tickets to human review, and uses Part B `is_premium` data for premium routing. Valid fraud classifications route to the security team before ordinary segment-based routing.
+[`src/triage.py`](./src/triage.py) processes ticket text with redaction, input validation, prompt enforcement, retries, and routing. Invalid or unsupported outputs are not guessed; they are sent to human review, while fraud and premium cases receive priority routing.
 
 ### Part D — Policy retrieval and refund agent
 
-- Document Chunking – Read the five policy documents and split them into 40-word chunks with 10-word overlap.
-- Vectorisation & Retrieval – Convert chunks into TF-IDF vectors and retrieve the top 3 relevant chunks using cosine similarity.
-- RAG Policy Assistant – Build an assistant that answers policy questions using retrieved context and provides fallback answers when information is unavailable.
-- Retrieval & Grounding Evaluation – Evaluate 14 policy questions, verify retrieved sources and answers, and compare overlapping vs non-overlapping chunks.
-- Tool Development – Implement five tools: `get_order`, `search_policy`, `calculate_refund`, `issue_refund` and `escalate_to_human`.
-- ReAct Agent – Build a tool-calling refund agent, execute all 7 scenarios and implement token, iteration and timeout limits.
-- Safe Execution & Recovery – Handle failures with fallback responses, save checkpoints and implement crash recovery using `resume_agent`.
-- ReAct vs Plan-and-Execute – Compare both approaches based on model calls, token usage, error handling and suitability for the refund workflow.
+- **Document chunking:** split five policy documents into 40-word chunks with 10-word overlap.
+- **Vectorization and retrieval:** create TF-IDF vectors and retrieve the top three relevant chunks with cosine similarity.
+- **RAG policy assistant:** answer questions using retrieved policy context and return explicit fallbacks when context is insufficient.
+- **Retrieval evaluation:** evaluate 14 policy questions and compare overlapping vs. non-overlapping chunking.
+- **Tool development:** implement `get_order`, `search_policy`, `calculate_refund`, `issue_refund`, and `escalate_to_human`.
+- **ReAct agent:** build a tool-using refund workflow, run all 7 scenarios, and apply token, iteration, and timeout limits.
+- **Safe execution and recovery:** use fallback responses, save checkpoints, and resume with `resume_agent` after a crash.
+- **ReAct vs. plan-and-execute:** compare model calls, token usage, and error handling for workflow suitability.
 
-[`src/policy_rag.py`](./src/policy_rag.py) splits the five policy documents into 40-word chunks with 10-word overlap, fits a `TfidfVectorizer`, and ranks results using cosine similarity. Its `answer` method passes three source-labelled chunks and the question to the local mock with instructions to answer only from the context or return an explicit fallback.
-
-[`src/refund_agent.py`](./src/refund_agent.py) exposes five tools: order lookup, policy retrieval, refund calculation, refund issuance, and human escalation. The ReAct loop reads order status and amounts from SQLite and enforces the completed-order, over-45-minute delivery, and INR 1000 escalation rules. Issuance and escalation tools validate eligibility independently and append to a local JSONL ledger. Each tool observation is checkpointed under `state/`; `resume_agent` continues from that checkpoint.
+[`src/policy_rag.py`](./src/policy_rag.py) and [`src/refund_agent.py`](./src/refund_agent.py) implement the retrieval and tool-using agent layers. The workflow is auditable: each tool decision, ledger entry, and checkpoint is stored locally without interacting with a production payment system.
 
 ## Technology stack
 
